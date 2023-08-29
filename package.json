@@ -9,7 +9,8 @@
   "license": "MIT",
   "dependencies": {
     "@1inch/solidity-utils": "2.3.0",
-    "@openzeppelin/contracts": "4.6.0"
+    "@openzeppelin/contracts": "4.6.0",
+    "lodash.difference": "^4.5.0"
   },
   "devDependencies": {
     "@metamask/eth-sig-util": "4.0.1",
