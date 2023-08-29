@@ -16,3 +16,10 @@ Each next Merkle Tree root replaces previous one and should contain cumulative b
 ## Signature-based drop
 
 Each entry of the drop contains private key which is used to sign the address of the receiver. This is done to safely distribute the drop and prevent MEV stealing.
+
+## Signature-periodic drop
+
+The same as signature-based drop but:
+1. Merkle tree can be replaced as it's done in Sequential cumulative Merkle Tree drop
+2. Drops native token
+3. Allow claim once in configurable period.
