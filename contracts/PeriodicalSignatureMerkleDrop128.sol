@@ -15,6 +15,7 @@ contract PeriodicalSignatureMerkleDrop128 is IPeriodicalSignatureMerkleDrop128, 
     using Address for address payable;
     using SafeERC20 for IERC20;
 
+    address public immutable override token;
     // Claim period in seconds
     uint256 public override claimPeriod;
     bytes16 public override merkleRoot;
@@ -25,8 +26,9 @@ contract PeriodicalSignatureMerkleDrop128 is IPeriodicalSignatureMerkleDrop128, 
 
     receive() external payable {}  // solhint-disable-line no-empty-blocks
 
-    constructor(uint256 claimPeriod_) {
+    constructor(uint256 claimPeriod_, address token_) {
         claimPeriod = claimPeriod_;
+        token = token_;
     }
 
     function setMerkleRoot(bytes16 merkleRoot_) external override onlyOwner {
@@ -42,23 +44,28 @@ contract PeriodicalSignatureMerkleDrop128 is IPeriodicalSignatureMerkleDrop128, 
     function claim(address receiver, uint256 amount, bytes calldata merkleProof, bytes calldata signature) external override {
         bytes32 signedHash = ECDSA.toEthSignedMessageHash(keccak256(abi.encodePacked(receiver)));
         address account = ECDSA.recover(signedHash, signature);
-        require(lastClaim[account] == 0 || block.timestamp - lastClaim[account] >= claimPeriod, "Сlaim period has not passed yet");
+        require(lastClaim[account] == 0 || block.timestamp - lastClaim[account] >= claimPeriod, "Claim period has not passed yet");
 
         // Verify the merkle proof.
         bytes16 node = bytes16(keccak256(abi.encodePacked(account, amount)));
-        require(_verifyAsm(merkleProof, expectedMerkleRoot, leaf), "CMD: Invalid proof");
+        require(_verifyAsm(merkleProof, merkleRoot, node), "CMD: Invalid proof");
         // (bool valid) = _verifyAsm(merkleProof, merkleRoot, node);
         // require(valid, "MD: Invalid proof");
-        payable(receiver).sendValue(amount);
+        if (token == address(0)) {
+            payable(receiver).sendValue(amount);
+        } else {
+            IERC20(token).safeTransfer(receiver, amount);
+        }
+        
         lastClaim[account] = block.timestamp;
         // _cashback();
     }
 
-    function verify(bytes calldata proof, bytes16 root, bytes16 leaf) external view returns (bool valid, uint256 index) {
+    function verify(bytes calldata proof, bytes16 root, bytes16 leaf) external pure returns (bool valid) {
         return _verifyAsm(proof, root, leaf);
     }
 
-    function verify(bytes calldata proof, bytes16 leaf) external view returns (bool valid, uint256 index) {
+    function verify(bytes calldata proof, bytes16 leaf) external view returns (bool valid) {
         return _verifyAsm(proof, merkleRoot, leaf);
     }
 
@@ -70,7 +77,7 @@ contract PeriodicalSignatureMerkleDrop128 is IPeriodicalSignatureMerkleDrop128, 
         }
     }
 
-    function _verifyAsm(bytes calldata proof, bytes16 root, bytes16 leaf) private view returns (bool valid) {
+    function _verifyAsm(bytes calldata proof, bytes16 root, bytes16 leaf) private pure returns (bool valid) {
         /// @solidity memory-safe-assembly
         assembly {  // solhint-disable-line no-inline-assembly
             let ptr := proof.offset
@@ -86,7 +93,6 @@ contract PeriodicalSignatureMerkleDrop128 is IPeriodicalSignatureMerkleDrop128, 
                 default {
                     mstore(0x00, node)
                     mstore(0x10, leaf)
-                    index := or(mask, index)
                 }
 
                 leaf := keccak256(0x00, 0x20)
