@@ -56,6 +56,7 @@ contract PeriodicalSignatureMerkleDrop128 is IPeriodicalSignatureMerkleDrop128, 
         } else {
             IERC20(token).safeTransfer(receiver, amount);
         }
+        emit Claimed(receiver, amount);
         
         lastClaim[account] = block.timestamp;
         // _cashback();

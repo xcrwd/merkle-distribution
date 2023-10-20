@@ -9,6 +9,8 @@ interface IPeriodicalSignatureMerkleDrop128 {
     event MerkelRootUpdated(bytes16 oldMerkleRoot, bytes16 newMerkleRoot);
     // This event is triggered whenever a call to #setClaimPeriod succeeds.
     event ClaimPeriodUpdated(uint256 oldClaimPeriod, uint256 newClaimPeriod);
+    // This event is triggered whenever a call to #claim succeeds.
+    event Claimed(address indexed account, uint256 amount);
 
     // Returns the address of the token distributed by this contract.
     function token() external view returns (address);
