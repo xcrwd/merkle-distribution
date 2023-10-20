@@ -1,8 +1,7 @@
 const { BN } = require('@openzeppelin/test-helpers');
 const { MerkleTree } = require('merkletreejs');
-const { personalSign } = require('@metamask/eth-sig-util');
 const keccak256 = require('keccak256');
-const { toBN } = require('./helpers/utils');
+const { toBN, makeSignature } = require('./helpers/utils');
 const { promisify } = require("util");
 const randomBytesAsync = promisify(require("crypto").randomBytes);
 const Wallet = require("ethereumjs-wallet").default;
@@ -54,8 +53,6 @@ async function genPrivs(n) {
 }
 
 contract('PeriodicalSignatureMerkleDrop128', async function ([_, w1, w2, w3, w4]) {
-    const wallets = [w1, w2, w3, w4];
-
     function findSortedIndex (self, i) {
         return self.leaves.indexOf(self.hashedElements[i]);
     }
@@ -82,25 +79,27 @@ contract('PeriodicalSignatureMerkleDrop128', async function ([_, w1, w2, w3, w4]
             await this.drop.contract.methods.verify(this.proofs[findSortedIndex(this, 0)], this.root, this.leaves[findSortedIndex(this, 0)]).send({ from: _ });
             expect(await this.drop.verify(this.proofs[findSortedIndex(this, 0)], this.root, this.leaves[findSortedIndex(this, 0)])).to.be.true;
         }
-        const signature = personalSign({ privateKey: benchmarkWallets[0].getPrivateKey(), data: keccak256(receivers[0]) });
+        const signature = makeSignature(benchmarkWallets[0], receivers[0]);
         await this.drop.claim(receivers[0], amount, this.proofs[findSortedIndex(this, 0)], signature);
     });
 
     describe('Single drop for 4 wallets: [1, 2, 3, 4]', async function () {
         beforeEach(async function () {
-            const { hashedElements, leaves, root, proofs } = await makeDrop(this.token, this.drop, [w1, w2, w3, w4], [1, 2, 3, 4], 10);
+            const { hashedElements, leaves, root, proofs } = await makeDrop(this.token, this.drop, [w1, w2, w3, w4], [1, 2, 3, 4], 1 + 2 + 3 + 4);
+            this.receivers = Array(4).fill().map((_, i) => '0x' + (new BN(w1.substr(2), 16)).addn(i).toString('hex'));
             this.hashedElements = hashedElements;
             this.leaves = leaves;
             this.root = root;
             this.proofs = proofs;
         });
 
-        shouldBehaveLikeMerkleDropFor4WalletsWithBalances1234('CMD', [w1, w2, w3, w4], findSortedIndex);
+        shouldBehaveLikeMerkleDropFor4WalletsWithBalances1234('CMD', [w1, w2, w3, w4].map(w => Wallet.fromPrivateKey(Buffer.from(w, "hex"))), findSortedIndex);
     });
 
     describe('Double drop for 4 wallets: [1, 2, 3, 4] + [2, 3, 4, 5] = [3, 5, 7, 9]', async function () {
         async function makeFirstDrop (self) {
             const { hashedElements, leaves, root, proofs } = await makeDrop(self.token, self.drop, [w1, w2, w3, w4], [1, 2, 3, 4], 1 + 2 + 3 + 4);
+            self.receivers = Array(4).fill().map((_, i) => '0x' + (new BN(w1.substr(2), 16)).addn(i).toString('hex'));
             self.hashedElements = hashedElements;
             self.leaves = leaves;
             self.root = root;
@@ -109,12 +108,13 @@ contract('PeriodicalSignatureMerkleDrop128', async function ([_, w1, w2, w3, w4]
 
         async function makeSecondDrop (self) {
             const { hashedElements, leaves, root, proofs } = await makeDrop(self.token, self.drop, [w1, w2, w3, w4], [3, 5, 7, 9], 2 + 3 + 4 + 5);
+            self.receivers = Array(4).fill().map((_, i) => '0x' + (new BN(w2.substr(2), 16)).addn(i).toString('hex'));
             self.hashedElements = hashedElements;
             self.leaves = leaves;
             self.root = root;
             self.proofs = proofs;
         }
 
-        shouldBehaveLikeCumulativeMerkleDropFor4WalletsWithBalances1234('CMD', _, [w1, w2, w3, w4], findSortedIndex, makeFirstDrop, makeSecondDrop);
+        shouldBehaveLikeCumulativeMerkleDropFor4WalletsWithBalances1234('CMD', [w1, w2, w3, w4].map(w => Wallet.fromPrivateKey(Buffer.from(w, "hex"))), findSortedIndex, makeFirstDrop, makeSecondDrop);
     });
 });
